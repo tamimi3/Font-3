@@ -1,0 +1,54 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup JDK 17
+      uses: actions/setup-java@v3
+      id: setup-java
+      with:
+        distribution: temurin
+        java-version: 17
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+          build-essential git zip unzip openjdk-17-jdk python3-pip \
+          autoconf libtool pkg-config zlib1g-dev \
+          libncurses-dev cmake libffi-dev libssl-dev automake
+      shell: bash
+
+    - name: Cache Gradle
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: gradle-cache-${{ runner.os }}-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
+        restore-keys: gradle-cache-${{ runner.os }}-
+
+    - name: Grant execute to gradlew
+      run: chmod +x ./gradlew
+
+    - name: Build APK (release)
+      run: ./gradlew assembleRelease
+      env:
+        JAVA_HOME: ${{ steps.setup-java.outputs.path }}
+
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-apks
+        path: app/build/outputs/**/*.apk
